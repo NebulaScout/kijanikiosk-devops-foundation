@@ -1,0 +1,10 @@
+ubuntu@devops-week3-monday:~/shared$ sudo -u kk-api touch /opt/kijanikiosk/shared/logs/test-write.tmp
+ubuntu@devops-week3-monday:~/shared$ sudo ls /opt/kijanikiosk/shared/logs/
+test-write.tmp
+
+sudo -u kk-api touch /opt/kijanikiosk/shared/logs/test-write.tmp \
+  && echo "PASS: kk-api can write after logrotate" \
+  || echo "FAIL: kk-api cannot write to shared/logs"
+
+PASS: kk-api can write after logrotate
+
