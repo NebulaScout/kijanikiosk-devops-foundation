@@ -1,0 +1,37 @@
+[Unit]
+Description={{ service_name }}
+After=network.target
+
+[Service]
+Type=simple
+
+User={{ service_name }}
+Group={{ service_group }}
+
+WorkingDirectory={{ base_dir }}/{{ service_name }}
+
+ExecStart=/usr/bin/python3 -m http.server {{ service_port }}
+
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+
+ProtectSystem=strict
+ProtectHome=true
+
+MemoryDenyWriteExecute=true
+LockPersonality=true
+
+RestrictNamespaces=true
+RestrictRealtime=true
+
+SystemCallArchitectures=native
+
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

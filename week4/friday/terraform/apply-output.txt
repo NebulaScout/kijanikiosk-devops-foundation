@@ -1,0 +1,121 @@
+[0m[1mnull_resource.kijanikiosk_api: Destroying... [id=3277465512247809553][0m[0m
+[0m[1mnull_resource.kijanikiosk_api: Destruction complete after 0s[0m
+[0m[1maws_instance.kijanikiosk_api: Creating...[0m[0m
+[0m[1maws_instance.kijanikiosk_api: Still creating... [00m10s elapsed][0m[0m
+[0m[1maws_instance.kijanikiosk_api: Creation complete after 17s [id=i-095ad4e021c1e62c6][0m
+[0m[1m[32m
+Apply complete! Resources: 1 added, 0 changed, 1 destroyed.[0m
+
+
+# aws_instance.kijanikiosk_api:
+resource "aws_instance" "kijanikiosk_api" {
+    ami                                  = "ami-0d28727121d5d4a3c"
+    arn                                  = "arn:aws:ec2:us-east-1:696741019132:instance/i-095ad4e021c1e62c6"
+    associate_public_ip_address          = true
+    availability_zone                    = "us-east-1d"
+    disable_api_stop                     = false
+    disable_api_termination              = false
+    ebs_optimized                        = false
+    force_destroy                        = false
+    get_password_data                    = false
+    hibernation                          = false
+    host_id                              = [90mnull[0m[0m
+    iam_instance_profile                 = [90mnull[0m[0m
+    id                                   = "i-095ad4e021c1e62c6"
+    instance_initiated_shutdown_behavior = "stop"
+    instance_lifecycle                   = [90mnull[0m[0m
+    instance_state                       = "running"
+    instance_type                        = "t3.micro"
+    ipv6_address_count                   = 0
+    ipv6_addresses                       = []
+    key_name                             = "main-key"
+    monitoring                           = false
+    outpost_arn                          = [90mnull[0m[0m
+    password_data                        = [90mnull[0m[0m
+    placement_group                      = [90mnull[0m[0m
+    placement_group_id                   = [90mnull[0m[0m
+    placement_partition_number           = 0
+    primary_network_interface_id         = "eni-0a1f5b4b1190b605a"
+    private_dns                          = "ip-172-31-35-66.ec2.internal"
+    private_ip                           = "172.31.35.66"
+    public_dns                           = "ec2-98-94-106-195.compute-1.amazonaws.com"
+    public_ip                            = "98.94.106.195"
+    region                               = "us-east-1"
+    secondary_private_ips                = []
+    security_groups                      = [
+        "default",
+    ]
+    source_dest_check                    = true
+    spot_instance_request_id             = [90mnull[0m[0m
+    subnet_id                            = "subnet-0a36534d5f1e3ea51"
+    tags                                 = {
+        "Environment" = "staging"
+        "Name"        = "kijanikiosk-api"
+    }
+    tags_all                             = {
+        "Environment" = "staging"
+        "Name"        = "kijanikiosk-api"
+    }
+    tenancy                              = "default"
+    user_data_replace_on_change          = false
+    vpc_security_group_ids               = [
+        "sg-0a0c1bd80a0ed4417",
+    ]
+
+    capacity_reservation_specification {
+        capacity_reservation_preference = "open"
+    }
+
+    cpu_options {
+        amd_sev_snp           = [90mnull[0m[0m
+        core_count            = 1
+        nested_virtualization = [90mnull[0m[0m
+        threads_per_core      = 2
+    }
+
+    credit_specification {
+        cpu_credits = "unlimited"
+    }
+
+    enclave_options {
+        enabled = false
+    }
+
+    maintenance_options {
+        auto_recovery = "default"
+    }
+
+    metadata_options {
+        http_endpoint               = "enabled"
+        http_protocol_ipv6          = "disabled"
+        http_put_response_hop_limit = 1
+        http_tokens                 = "optional"
+        instance_metadata_tags      = "disabled"
+    }
+
+    primary_network_interface {
+        delete_on_termination = true
+        network_interface_id  = "eni-0a1f5b4b1190b605a"
+    }
+
+    private_dns_name_options {
+        enable_resource_name_dns_a_record    = false
+        enable_resource_name_dns_aaaa_record = false
+        hostname_type                        = "ip-name"
+    }
+
+    root_block_device {
+        delete_on_termination = true
+        device_name           = "/dev/sda1"
+        encrypted             = false
+        iops                  = 100
+        kms_key_id            = [90mnull[0m[0m
+        tags                  = {}
+        tags_all              = {}
+        throughput            = 0
+        volume_id             = "vol-043c9712a4699d452"
+        volume_size           = 8
+        volume_type           = "gp2"
+    }
+}
+
