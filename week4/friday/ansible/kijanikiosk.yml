@@ -1,4 +1,21 @@
 ---
+# --- PLAY 1: WAIT FOR SSH READINESS ---
+# This play runs on localhost and waits for the remote hosts to be ready.
+- name: Wait for SSH to become available on KijaniKiosk servers
+  hosts: kijanikiosk
+  gather_facts: false
+  tasks:
+    - name: Wait for SSH port 22 to be open
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host | default(inventory_hostname) }}"
+        port: 22
+        state: started
+        delay: 10 # Wait 10s before first check
+        timeout: 300 # Give up after 5 minutes
+        search_regex: OpenSSH # Optional: Ensure SSH banner is present
+      delegate_to: localhost
+
+# --- PLAY 2: CONFIGURE SERVER ---
 - name: Configure KijaniKiosk servers
   hosts: kijanikiosk
   become: true
