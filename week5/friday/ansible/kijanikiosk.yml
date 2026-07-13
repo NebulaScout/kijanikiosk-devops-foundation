@@ -1,0 +1,157 @@
+---
+# --- PLAY 1: WAIT FOR SSH READINESS ---
+# This play runs on localhost and waits for the remote hosts to be ready.
+- name: Wait for SSH to become available on KijaniKiosk servers
+  hosts: kijanikiosk
+  gather_facts: false
+  tasks:
+    - name: Wait for SSH port 22 to be open
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host | default(inventory_hostname) }}"
+        port: 22
+        state: started
+        delay: 10 # Wait 10s before first check
+        timeout: 300 # Give up after 5 minutes
+        search_regex: OpenSSH # Optional: Ensure SSH banner is present
+      delegate_to: localhost
+
+# --- PLAY 2: CONFIGURE SERVER ---
+- name: Configure KijaniKiosk servers
+  hosts: kijanikiosk
+  become: true
+  become_method: sudo
+  gather_facts: true
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart service
+      ansible.builtin.systemd:
+        name: "{{ service_name }}.service"
+        state: restarted
+      when: ansible_facts.services is defined and (service_name + '.service') in ansible_facts.services
+
+    - name: Restart journald
+      ansible.builtin.systemd:
+        name: systemd-journald
+        state: restarted
+
+  tasks:
+    # Needed for ansible_facts.services in handler condition
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    # --- PHASE 1: PACKAGES ---
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - ufw
+          - logrotate
+          - rsyslog
+          - curl
+          - ca-certificates
+        state: present
+        install_recommends: false
+
+    # --- PHASE 2: SERVICE ACCOUNTS ---
+    - name: Create kijanikiosk system group
+      ansible.builtin.group:
+        name: "{{ service_name }}"
+        system: true
+        state: present
+
+    - name: Create service account
+      ansible.builtin.user:
+        name: "{{ service_name }}"
+        group: "{{ service_name }}"
+        system: true
+        create_home: false
+        shell: /usr/sbin/nologin
+        state: present
+
+    # --- PHASE 3: DIRECTORIES ---
+    - name: Create application directory tree
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ service_name }}"
+        group: "{{ service_name }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: "{{ base_dir }}", mode: "0755" }
+        - { path: "{{ base_dir }}/{{ service_name }}", mode: "0755" }
+        - { path: "/etc/{{ service_name }}", mode: "0750" }
+        - { path: "/var/lib/{{ service_name }}", mode: "0750" }
+        - { path: "/var/log/{{ service_name }}", mode: "0750" }
+
+    # --- PHASE 4: SYSTEMD UNIT FILE ---
+    - name: Deploy systemd unit file
+      ansible.builtin.template:
+        src: templates/service.unit.j2
+        dest: "/etc/systemd/system/{{ service_name }}.service"
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart service
+
+    - name: Flush systemd reload before enabling service
+      ansible.builtin.meta: flush_handlers
+
+    - name: Refresh service facts after unit deployment
+      ansible.builtin.service_facts:
+
+    - name: Enable service
+      ansible.builtin.systemd:
+        name: "{{ service_name }}.service"
+        enabled: true
+        state: started
+
+    # --- PHASE 5: FIREWALL ---
+    - name: Set ufw default deny incoming
+      community.general.ufw:
+        state: enabled
+        default: deny
+        direction: incoming
+
+    - name: Allow SSH
+      community.general.ufw:
+        rule: allow
+        port: "22"
+        proto: tcp
+
+    - name: Allow service port on loopback only
+      community.general.ufw:
+        rule: allow
+        port: "{{ service_port }}"
+        proto: tcp
+        interface: lo
+        direction: in
+
+    # --- PHASE 6: JOURNAL PERSISTENCE ---
+    - name: Create persistent journal directory
+      ansible.builtin.file:
+        path: /var/log/journal
+        state: directory
+        owner: root
+        group: systemd-journal
+        mode: "2755"
+      notify:
+        - Restart journald
+
+    # --- PHASE 7: LOGROTATE ---
+    - name: Deploy logrotate configuration
+      ansible.builtin.template:
+        src: templates/logrotate.j2
+        dest: /etc/logrotate.d/kijanikiosk
+        owner: root
+        group: root
+        mode: "0644"
