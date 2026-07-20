@@ -57,6 +57,7 @@
           - rsyslog
           - curl
           - ca-certificates
+          - npm
         state: present
         install_recommends: false
 
