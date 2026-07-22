@@ -52,20 +52,23 @@ pipeline {
             }
         }
 
+        stage('Install') {
+            steps {
+                    echo "Installing all dependencies"
+                    sh 'npm ci --no-audit --no-fund'
+            }
+        }
+
         // Lint stage before Build (Fail-Fast Principle)
         stage('Lint') {
             steps {
-                
                     echo "Running ESLint on source files"
                     sh 'npm run lint'
-                
             }
         }
 
         stage('Build') {
             steps {
-                    echo "Installing production dependencies"
-                    sh 'npm ci --only=production --no-audit --no-fund'
                     
                     echo "Building version ${env.PKG_VERSION}"
                     sh 'npm run build'
