@@ -2,22 +2,11 @@ pipeline {
     agent {
         docker {
             image 'node:20'
+            // Mount Docker socket to allow Docker commands within the container
+            // Add host mapping for host.docker.internal to enable access to services running on the host machine
             args '-v /var/run/docker.sock:/var/run/docker.sock --add-host=host.docker.internal:host-gateway'
         }
     }
-
-    // environment {
-    //     NODE_ENV         = 'test'
-    //     BUILD_DIR        = 'dist'  
-    //     APP_NAME         = 'kijanikiosk-devops'
-    //     PKG_VERSION      = sh(script: 'node -p "require(\'./package.json\').version"', returnStdout: true).trim()
-    //     GIT_SHORT        = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim() 
-    //     ARTIFACT_VERSION = "${PKG_VERSION}-${GIT_SHORT}" 
-    //         NEXUS_URL = 'http://host.docker.internal:8081/'
-    //     APP_VERSION      = "${PKG_VERSION}"
-    //     NEXUS_REPO_NAME = 'npm-kijanikiosk'
-    //     ARTIFACT_NAME   = 'kijani-kiosk'
-    // }
 
     environment {
     NODE_ENV  = 'test'
@@ -26,7 +15,7 @@ pipeline {
     NEXUS_URL = 'http://host.docker.internal:8081'
     NEXUS_REPO_NAME = 'npm-kijanikiosk'
     ARTIFACT_NAME   = 'kijanikiosk'
-}
+    }
 
     options {
         timeout(time: 15, unit: 'MINUTES')
@@ -147,7 +136,8 @@ pipeline {
                             "$NEXUS_URL" "$NEXUS_REPO_NAME" \
                             "${NEXUS_URL#http://}" "$NEXUS_REPO_NAME" "$NEXUS_AUTH_TOKEN" > .npmrc
 
-                        echo "Publishing ${ARTIFACT_NAME}@${APP_VERSION} to Nexus"
+                        npm version "${ARTIFACT_VERSION}" --no-git-tag-version
+                        echo "Publishing ${ARTIFACT_NAME}@${ARTIFACT_VERSION} to Nexus"
                         npm publish --registry ${NEXUS_URL}/repository/${NEXUS_REPO_NAME}/
                         '''
                     }
@@ -164,8 +154,6 @@ pipeline {
             
         }
         success {
-            
-                // Log the specific artifact URL for downstream consumption
                 echo "Published ${APP_NAME} version ${ARTIFACT_VERSION} to Nexus"
                 echo "Artifact URL: ${NEXUS_URL}/${APP_NAME}/-/${APP_NAME}-${ARTIFACT_VERSION}.tgz"
         }
