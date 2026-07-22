@@ -1,0 +1,281 @@
+Started by user Richard Kabi
+
+Obtained Jenkinsfile from git https://github.com/NebulaScout/kijanikiosk-devops-foundation
+[Pipeline] Start of Pipeline
+[Pipeline] node
+Running on Jenkins
+ in /var/jenkins_home/workspace/kijani-kiosk-pipeline
+[Pipeline] {
+[Pipeline] stage
+[Pipeline] { (Declarative: Checkout SCM)
+[Pipeline] checkout
+Selected Git installation does not exist. Using Default
+The recommended git tool is: NONE
+No credentials specified
+Cloning the remote Git repository
+Cloning repository https://github.com/NebulaScout/kijanikiosk-devops-foundation
+ > git init /var/jenkins_home/workspace/kijani-kiosk-pipeline # timeout=10
+Fetching upstream changes from https://github.com/NebulaScout/kijanikiosk-devops-foundation
+ > git --version # timeout=10
+ > git --version # 'git version 2.47.3'
+ > git fetch --tags --force --progress -- https://github.com/NebulaScout/kijanikiosk-devops-foundation +refs/heads/*:refs/remotes/origin/* # timeout=10
+ > git config remote.origin.url https://github.com/NebulaScout/kijanikiosk-devops-foundation # timeout=10
+ > git config --add remote.origin.fetch +refs/heads/*:refs/remotes/origin/* # timeout=10
+Avoid second fetch
+ > git rev-parse refs/remotes/origin/feature/week5-ci-pipeline^{commit} # timeout=10
+Checking out Revision 141383ab9734ea3d6c424f96383ea71f81e100b3 (refs/remotes/origin/feature/week5-ci-pipeline)
+ > git config core.sparsecheckout # timeout=10
+ > git checkout -f 141383ab9734ea3d6c424f96383ea71f81e100b3 # timeout=10
+Commit message: "fix: add npm version to ensure the pipeline publishes different versions on each run"
+ > git rev-list --no-walk 22805e33fde3fb539cfa1f1d807ea0fde3f33ce9 # timeout=10
+First time build. Skipping changelog.
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] isUnix
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] sh
++ docker inspect -f . node:20
+.
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] withDockerContainer
+Jenkins seems to be running inside container 1304a892d511710aa04f44531d1a461416be70b4e8ee8b449663a6bf52306a34
+$ docker run -t -d -u 1000:1000 -v /var/run/docker.sock:/var/run/docker.sock --add-host=host.docker.internal:host-gateway -w /var/jenkins_home/workspace/kijani-kiosk-pipeline --volumes-from 1304a892d511710aa04f44531d1a461416be70b4e8ee8b449663a6bf52306a34 -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** -e ******** node:20 cat
+$ docker top 81c94741ad093c6597cdaae82a4dc0df4a0d21b641f70a487f93164c04adac4b -eo pid,comm
+[Pipeline] {
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] timeout
+Timeout set to expire in 15 min
+[Pipeline] {
+[Pipeline] stage
+[Pipeline] { (Initialize Pipeline)
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+Initializing Pipeline for kijanikiosk
+[Pipeline] echo
+Setting up environment variables
+[Pipeline] sh
++ node -p require('./package.json').version
+[Pipeline] sh
++ git rev-parse --short HEAD
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Install Dependencies)
+[Pipeline] echo
+Installing all dependencies
+[Pipeline] sh
++ npm ci --no-audit --no-fund
+
+added 192 packages in 15s
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Lint)
+[Pipeline] echo
+Running ESLint on source files
+[Pipeline] sh
++ npm run lint
+
+> kijanikiosk@0.0.0 lint
+> eslint .
+
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Build Application)
+[Pipeline] echo
+Building version 0.0.0
+[Pipeline] sh
++ npm run build
+
+> kijanikiosk@0.0.0 build
+> tsc -b && vite build
+
+[36mvite v8.1.5 [32mbuilding client environment for production...[36m[39m
+[2K
+transforming...✓ 20 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.45 kB │ gzip:   0.29 kB
+dist/assets/react-CHdo91hT.svg    4.12 kB │ gzip:   2.06 kB
+dist/assets/vite-BF8QNONU.svg     8.70 kB │ gzip:   1.60 kB
+dist/assets/hero-CLDdwZDr.png    13.05 kB
+dist/assets/index-D64VDMd1.css    4.10 kB │ gzip:   1.47 kB
+dist/assets/index-BbODhQ98.js   393.79 kB │ gzip: 118.39 kB
+
+[32m✓ built in 1.15s[39m
+[Pipeline] echo
+Check build output directory: dist
+[Pipeline] sh
++ ls -la dist
+total 36
+drwxr-xr-x 3 node node 4096 Jul 22 15:15 .
+drwxr-xr-x 9 node node 4096 Jul 22 15:15 ..
+drwxr-xr-x 2 node node 4096 Jul 22 15:15 assets
+-rw-r--r-- 1 node node 9522 Jul 22 15:15 favicon.svg
+-rw-r--r-- 1 node node 5031 Jul 22 15:15 icons.svg
+-rw-r--r-- 1 node node  456 Jul 22 15:15 index.html
++ ls -A dist
++ [ assets
+favicon.svg
+icons.svg
+index.html ]
+[Pipeline] echo
+Stashing build output for parallel stages
+[Pipeline] stash
+Stashed 8 file(s)
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Verify Build)
+[Pipeline] parallel
+[Pipeline] { (Branch: Test)
+[Pipeline] { (Branch: Security Audit)
+[Pipeline] stage
+[Pipeline] { (Test)
+[Pipeline] stage
+[Pipeline] { (Security Audit)
+[Pipeline] echo
+Running Unit Tests
+[Pipeline] unstash
+[Pipeline] echo
+Running Security Audit (npm audit)
+[Pipeline] unstash
+[Pipeline] sh
+[Pipeline] sh
++ npm run test -- --passWithNoTests --reporter=junit --outputFile=junit-results.xml
++ npm audit --audit-level=high
+
+> kijanikiosk@0.0.0 test
+> vitest run --passWithNoTests --reporter=junit --outputFile=junit-results.xml
+
+JUNIT report written to /var/jenkins_home/workspace/kijani-kiosk-pipeline/junit-results.xml
+Post stage
+[Pipeline] junit
+Recording test results
+None of the test reports contained any result
+[Checks API] No suitable checks publisher found.
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] }
+found 0 vulnerabilities
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] }
+[Pipeline] // parallel
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Archive Artifacts)
+[Pipeline] echo
+Archiving and Fingerprinting the Artifact
+[Pipeline] archiveArtifacts
+Archiving artifacts
+Recording fingerprints
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Publish Artifacts)
+[Pipeline] echo
+Publishing kijanikiosk@0.0.0 to Nexus Repository
+[Pipeline] echo
+Building artifact version: 0.0.0-141383a
+[Pipeline] echo
+Using NEXUS URL: http://host.docker.internal:8081
+[Pipeline] echo
+Target repository: npm-kijanikiosk
+[Pipeline] unstash
+[Pipeline] withCredentials
+Masking supported pattern matches of $NEXUS_PASS
+[Pipeline] {
+[Pipeline] sh
++ set -e
++ trap rm -f .npmrc; echo ".npmrc securely deleted via trap" EXIT
++ echo -n admin:****
++ base64
++ NEXUS_AUTH_TOKEN=YWRtaW46****
++ echo Nexus token generated for secure authentication
+Nexus token generated for secure authentication
++ printf registry=%s/repository/%s/
+//%s/repository/%s/:_auth=%s
+ http://host.docker.internal:8081 npm-kijanikiosk host.docker.internal:8081 npm-kijanikiosk YWRtaW46****
++ npm version 0.0.0-141383a --no-git-tag-version
+v0.0.0-141383a
++ echo Publishing kijanikiosk@0.0.0-141383a to Nexus
+Publishing kijanikiosk@0.0.0-141383a to Nexus
++ npm publish --registry http://host.docker.internal:8081/repository/npm-kijanikiosk/
+npm notice
+npm notice package: kijanikiosk@0.0.0-141383a
+npm notice Tarball Contents
+npm notice 2.4kB README.md
+npm notice 13.1kB dist/assets/hero-CLDdwZDr.png
+npm notice 393.8kB dist/assets/index-BbODhQ98.js
+npm notice 4.1kB dist/assets/index-D64VDMd1.css
+npm notice 4.1kB dist/assets/react-CHdo91hT.svg
+npm notice 8.7kB dist/assets/vite-BF8QNONU.svg
+npm notice 9.5kB dist/favicon.svg
+npm notice 5.0kB dist/icons.svg
+npm notice 456B dist/index.html
+npm notice 791B package.json
+npm notice 2.9kB src/App.css
+npm notice 3.6kB src/App.tsx
+npm notice 13.1kB src/assets/hero.png
+npm notice 4.1kB src/assets/react.svg
+npm notice 8.7kB src/assets/vite.svg
+npm notice 2.2kB src/index.css
+npm notice 230B src/main.tsx
+npm notice Tarball Details
+npm notice name: kijanikiosk
+npm notice version: 0.0.0-141383a
+npm notice filename: kijanikiosk-0.0.0-141383a.tgz
+npm notice package size: 143.4 kB
+npm notice unpacked size: 476.8 kB
+npm notice shasum: 0d0cb7ced14411b2f2b9571a759edd744e4efb93
+npm notice integrity: sha512-2k4Zb3dbkhaug[...]cljgkybKmpZhg==
+npm notice total files: 17
+npm notice
+npm notice Publishing to http://host.docker.internal:8081/repository/npm-kijanikiosk/ with tag latest and default access
++ kijanikiosk@0.0.0-141383a
++ rm -f .npmrc
++ echo .npmrc securely deleted via trap
+.npmrc securely deleted via trap
+[Pipeline] }
+[Pipeline] // withCredentials
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Declarative: Post Actions)
+[Pipeline] cleanWs
+[WS-CLEANUP] Deleting project workspace...
+[WS-CLEANUP] Deferred wipeout is used...
+[WS-CLEANUP] done
+[Pipeline] echo
+Pipeline status changed from previous build - investigate potential issues
+[Pipeline] echo
+Published kijanikiosk version 0.0.0-141383a to Nexus
+[Pipeline] echo
+Artifact URL: http://host.docker.internal:8081/kijanikiosk/-/kijanikiosk-0.0.0-141383a.tgz
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] }
+[Pipeline] // timeout
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+$ docker stop --time=1 81c94741ad093c6597cdaae82a4dc0df4a0d21b641f70a487f93164c04adac4b
+$ docker rm -f --volumes 81c94741ad093c6597cdaae82a4dc0df4a0d21b641f70a487f93164c04adac4b
+[Pipeline] // withDockerContainer
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // node
+[Pipeline] End of Pipeline
+Finished: SUCCESS
