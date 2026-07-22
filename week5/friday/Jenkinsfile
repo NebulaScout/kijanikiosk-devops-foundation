@@ -1,158 +1,184 @@
 pipeline {
     agent {
         docker {
-            // Requirement: Pinned Node.js image (not 'latest') to ensure reproducibility
-            image 'node:18.19.0-alpine3.18'
+            image 'node:18.19.1-alpine3.19'
             args '-v /var/run/docker.sock:/var/run/docker.sock'
         }
     }
 
+    // environment {
+    //     NODE_ENV         = 'test'
+    //     BUILD_DIR        = 'dist'  
+    //     APP_NAME         = 'kijanikiosk-devops'
+    //     PKG_VERSION      = sh(script: 'node -p "require(\'./package.json\').version"', returnStdout: true).trim()
+    //     GIT_SHORT        = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim() 
+    //     ARTIFACT_VERSION = "${PKG_VERSION}-${GIT_SHORT}" 
+    //     NEXUS_URL        = 'http://localhost:8081/'
+    //     APP_VERSION      = "${PKG_VERSION}"
+    //     NEXUS_REPO_NAME = 'npm-kijanikiosk'
+    //     ARTIFACT_NAME   = 'kijani-kiosk'
+    // }
+
     environment {
-        NEXUS_URL = 'http://localhost:8081/repository/npm-kijanikiosk/'
-        NEXUS_REPO_NAME = 'npm-kijanikiosk'
-        ARTIFACT_NAME = 'kijani-kiosk'
-        // Version derived from package.json or build metadata, not hardcoded
-        APP_VERSION = sh(script: 'node -p "require(\'./package.json\').version"', returnStdout: true).trim()
-        BUILD_TIMESTAMP = sh(script: 'date -u +"%Y-%m-%dT%H:%M:%SZ"', returnStdout: true).trim()
+    NODE_ENV  = 'test'
+    BUILD_DIR = 'dist'
+    APP_NAME  = 'kijanikiosk-devops'
+    NEXUS_URL = 'http://localhost:8081/'
+    NEXUS_REPO_NAME = 'npm-kijanikiosk'
+    ARTIFACT_NAME   = 'kijani-kiosk'
+}
+
+    options {
+        timeout(time: 15, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        disableConcurrentBuilds()
     }
 
     stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
+        // stage('Checkout') {
+        //     steps {
+        //         checkout scm
+        //     }
+        // }
 
-        // Requirement: Lint stage before Build (Fail-Fast Principle)
+        stage('Init') {
+        steps {
+        script {
+            env.PKG_VERSION = sh(script: "node -p \"require('./package.json').version\"", returnStdout: true).trim()
+            env.GIT_SHORT   = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+            env.ARTIFACT_VERSION = "${env.PKG_VERSION}-${env.GIT_SHORT}"
+            env.APP_VERSION = env.PKG_VERSION
+        }
+        }
+    }
+
+        // Lint stage before Build (Fail-Fast Principle)
         stage('Lint') {
             steps {
-                script {
-                    echo "Running ESLint on commit ${env.GIT_COMMIT}"
-                    sh 'npm ci --ignore-scripts' // Clean install without running scripts yet
+                
+                    echo "Running ESLint on source files"
                     sh 'npm run lint'
-                }
+                
             }
         }
 
         stage('Build') {
             steps {
-                script {
-                    echo "Building version ${env.APP_VERSION}"
+                    echo "Installing production dependencies"
+                    sh 'npm ci --only=production --no-audit --no-fund'
+                    
+                    echo "Building version ${env.PKG_VERSION}"
                     sh 'npm run build'
+
+                    echo "Check build output directory: ${env.BUILD_DIR}"
+                    sh 'ls -la ${env.BUILD_DIR} && [ "$(ls -A ${env.BUILD_DIR})" ]'
+                    
+                    echo "Stashing build output for parallel stages"
+                    stash includes: "${env.BUILD_DIR}/**", name: "build-output", useDefaultExcludes: true
                 }
             }
-        }
 
-        // Requirement: Parallel Verify stage (Test and Security Audit)
+        //  Parallel Verify stage (Test and Security Audit)
         stage('Verify') {
             parallel {
                 stage('Test') {
                     steps {
-                        script {
-                            echo "Running Unit Tests"
-                            // Generate JUnit XML for post-build analysis
-                            sh 'npm run test -- --ci --reporters=default --reporters=jest-junit'
+                        
+                        echo "Running Unit Tests"
+                        unstash 'build-output'
+
+                        // Generate JUnit XML for post-build analysis
+                        sh 'npm run test -- --ci --reporters=default --reporters=jest-junit'
+                        
+                    }
+                    post {
+                        always {
+                            // Publish JUnit test results for analysis
+                            junit allowEmptyResults: true, testResults: '**/junit-*.xml'
                         }
                     }
                 }
+
                 stage('Security Audit') {
                     steps {
-                        script {
+                        
                             echo "Running Security Audit (npm audit)"
+                            unstash 'build-output'
                             // Fail build if high/critical vulnerabilities found
                             sh 'npm audit --audit-level=high'
-                        }
+                         
                     }
                 }
             }
         }
 
-        // Requirement: Archive stage with artifact fingerprinting
+        // Archive stage with artifact fingerprinting
         stage('Archive') {
             steps {
-                script {
-                    echo "Archiving and Fingerprinting Artifact"
-                    // Create a tarball of the build output
-                    sh "tar -czvf ${env.ARTIFACT_NAME}-${env.APP_VERSION}.tar.gz dist/"
-                    
-                    // Generate SHA256 checksum for integrity verification
-                    sh "sha256sum ${env.ARTIFACT_NAME}-${env.APP_VERSION}.tar.gz > ${env.ARTIFACT_NAME}-${env.APP_VERSION}.tar.gz.sha256"
-                    
-                    // Archive artifacts in Jenkins for immediate access and evidence
-                    archiveArtifacts artifacts: "${env.ARTIFACT_NAME}-${env.APP_VERSION}.tar.gz, ${env.ARTIFACT_NAME}-${env.APP_VERSION}.tar.gz.sha256", fingerprint: true
-                }
+                
+                    echo "Archiving and Fingerprinting the Artifact"
+                    archiveArtifacts artifacts: "${BUILD_DIR}/**",
+                                 fingerprint: true,
+                                 onlyIfSuccessful: true
+                
             }
         }
 
-        // Requirement: Publish stage with secure Nexus authentication
+        // Publish stage with secure Nexus authentication
         stage('Publish') {
             steps {
-                script {
+
+                unstash 'build-output'
+                
                     // withCredentials ensures secrets are masked and scoped to this block
                     withCredentials([usernamePassword(credentialsId: 'nexus-credentials-id', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
                         sh '''
+                        set -e
+
+                        # This ensures .npmrc is deleted whether the script succeeds, fails, or is aborted
+                        trap 'rm -f .npmrc; echo ".npmrc securely deleted via trap"' EXIT
+
+
+                        NEXUS_AUTH_TOKEN=$(echo -n "${NEXUS_USER}:${NEXUS_PASS}" | base64)
+                        echo "Nexus token generated for secure authentication"
+
                             # Create .npmrc dynamically within the shell step
                             cat > .npmrc <<EOF
                             registry=${NEXUS_URL}/repository/${NEXUS_REPO_NAME}/
-                            //${NEXUS_URL#http://}:8081/repository/${NEXUS_REPO_NAME}/:_authToken=${NEXUS_PASS}
-                            always-auth=true
+                            //${NEXUS_URL#http://}/repository/${NEXUS_REPO_NAME}/:_auth=${NEXUS_AUTH_TOKEN}
+
                             EOF
 
                             echo "Publishing ${ARTIFACT_NAME}@${APP_VERSION} to Nexus"
-                            
-                            # Publish to Nexus (using npm publish or curl depending on repo type)
-                            # Assuming a generic npm publish workflow configured via .npmrc
                             npm publish --registry ${NEXUS_URL}/repository/${NEXUS_REPO_NAME}/
-                            
-                            # Verify upload by checking existence (optional but recommended for evidence)
-                            # curl -u ${NEXUS_USER}:${NEXUS_PASS} -I ${NEXUS_URL}/repository/${NEXUS_REPO_NAME}/${ARTIFACT_NAME}/-/${ARTIFACT_NAME}-${APP_VERSION}.tgz
-
-                            # Securely delete .npmrc immediately after use
-                            rm -f .npmrc
-                            echo ".npmrc securely deleted"
                         '''
                     }
-                }
+                
             }
         }
     }
 
-    // Requirement: Comprehensive post block
+    // Comprehensive post block
     post {
         always {
             // Workspace cleanup to prevent disk exhaustion and cross-build contamination
             cleanWs()
-            // Publish test results regardless of outcome
-            junit allowEmptyResults: true, testResults: '**/junit-*.xml'
+            
         }
         success {
-            script {
+            
                 // Log the specific artifact URL for downstream consumption
-                def nexusUrl = "${env.NEXUS_URL}/repository/${env.NEXUS_REPO_NAME}/${env.ARTIFACT_NAME}/-/${env.ARTIFACT_NAME}-${env.APP_VERSION}.tgz"
-                echo "✅ BUILD SUCCESS: Artifact available at ${nexusUrl}"
-                // Optionally send a Slack/Email notification here with the URL
-            }
+                echo "Published ${APP_NAME} version ${ARTIFACT_VERSION} to Nexus"
+                echo "Artifact URL: ${NEXUS_URL}/kijanikiosk-payments/-/kijanikiosk-payments-${ARTIFACT_VERSION}.tgz"
         }
         failure {
             script {
-                echo "❌ BUILD FAILED: Check console output for details."
-                // Trigger failure notification (e.g., email to committers or Slack alert)
-                // mail to: 'team@example.com', subject: "Failed: ${env.JOB_NAME}", body: "Check ${env.BUILD_URL}"
+                echo "Pipeline FAILED at build ${BUILD_NUMBER} - check logs at ${BUILD_URL}"
+
             }
         }
         changed {
-            script {
-                // Notify only when the build status changes (e.g., from Failure to Success)
-                def currentBuild = currentBuild
-                if (currentBuild.previousBuild != null) {
-                    def prevResult = currentBuild.previousBuild.result
-                    def currentResult = currentBuild.currentResult
-                    if (prevResult != currentResult) {
-                        echo "🔄 STATUS CHANGED: From ${prevResult} to ${currentResult}"
-                        // Send status transition notification
-                    }
-                }
-            }
+            echo "Pipeline status changed from previous build - investigate potential issues"
         }
     }
 }   
