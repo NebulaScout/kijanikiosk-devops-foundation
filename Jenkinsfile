@@ -91,13 +91,13 @@ pipeline {
                         unstash 'build-output'
 
                         // Generate JUnit XML for post-build analysis
-                        sh 'npm run test -- --ci --reporters=default --reporters=jest-junit'
+                        sh 'npm run test -- --reporter=junit --outputFile=junit-results.xml'
                         
                     }
                     post {
                         always {
                             // Publish JUnit test results for analysis
-                            junit allowEmptyResults: true, testResults: '**/junit-*.xml'
+                            junit allowEmptyResults: true, testResults: 'junit-results.xml'
                         }
                     }
                 }
