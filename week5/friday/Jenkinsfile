@@ -42,15 +42,15 @@ pipeline {
         // }
 
         stage('Init') {
-        steps {
-        script {
-            env.PKG_VERSION = sh(script: "node -p \"require('./package.json').version\"", returnStdout: true).trim()
-            env.GIT_SHORT   = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-            env.ARTIFACT_VERSION = "${env.PKG_VERSION}-${env.GIT_SHORT}"
-            env.APP_VERSION = env.PKG_VERSION
+            steps {
+                script {
+                    env.PKG_VERSION = sh(script: 'node -p "require(\'./package.json\').version"', returnStdout: true).trim()
+                    env.GIT_SHORT   = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                    env.ARTIFACT_VERSION = "${env.PKG_VERSION}-${env.GIT_SHORT}"
+                    env.APP_VERSION = env.PKG_VERSION
+                }
+            }
         }
-        }
-    }
 
         // Lint stage before Build (Fail-Fast Principle)
         stage('Lint') {
