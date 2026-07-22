@@ -1,7 +1,7 @@
 pipeline {
     agent {
         docker {
-            image 'node:18.19.1'
+            image 'node:20'
             args '-v /var/run/docker.sock:/var/run/docker.sock'
         }
     }
@@ -74,7 +74,7 @@ pipeline {
                     sh 'npm run build'
 
                     echo "Check build output directory: ${env.BUILD_DIR}"
-                    sh 'ls -la ${env.BUILD_DIR} && [ "$(ls -A ${env.BUILD_DIR})" ]'
+                    sh "ls -la ${env.BUILD_DIR} && [ \"\$(ls -A ${env.BUILD_DIR})\" ]"
                     
                     echo "Stashing build output for parallel stages"
                     stash includes: "${env.BUILD_DIR}/**", name: "build-output", useDefaultExcludes: true
