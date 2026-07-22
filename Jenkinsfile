@@ -2,7 +2,7 @@ pipeline {
     agent {
         docker {
             image 'node:20'
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
+            args '-v /var/run/docker.sock:/var/run/docker.sock --add-host=host.docker.internal:host-gateway'
         }
     }
 
@@ -13,7 +13,7 @@ pipeline {
     //     PKG_VERSION      = sh(script: 'node -p "require(\'./package.json\').version"', returnStdout: true).trim()
     //     GIT_SHORT        = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim() 
     //     ARTIFACT_VERSION = "${PKG_VERSION}-${GIT_SHORT}" 
-    //     NEXUS_URL        = 'http://localhost:8081/'
+    //         NEXUS_URL = 'http://host.docker.internal:8081/'
     //     APP_VERSION      = "${PKG_VERSION}"
     //     NEXUS_REPO_NAME = 'npm-kijanikiosk'
     //     ARTIFACT_NAME   = 'kijani-kiosk'
@@ -23,7 +23,7 @@ pipeline {
     NODE_ENV  = 'test'
     BUILD_DIR = 'dist'
     APP_NAME  = 'kijanikiosk'
-    NEXUS_URL = 'http://localhost:8081'
+    NEXUS_URL = 'http://host.docker.internal:8081'
     NEXUS_REPO_NAME = 'npm-kijanikiosk'
     ARTIFACT_NAME   = 'kijanikiosk'
 }
