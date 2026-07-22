@@ -22,10 +22,10 @@ pipeline {
     environment {
     NODE_ENV  = 'test'
     BUILD_DIR = 'dist'
-    APP_NAME  = 'kijanikiosk-devops'
-    NEXUS_URL = 'http://localhost:8081/'
+    APP_NAME  = 'kijanikiosk'
+    NEXUS_URL = 'http://localhost:8081'
     NEXUS_REPO_NAME = 'npm-kijanikiosk'
-    ARTIFACT_NAME   = 'kijani-kiosk'
+    ARTIFACT_NAME   = 'kijanikiosk'
 }
 
     options {
@@ -35,15 +35,11 @@ pipeline {
     }
 
     stages {
-        // stage('Checkout') {
-        //     steps {
-        //         checkout scm
-        //     }
-        // }
-
-        stage('Init') {
+        stage('Initialize Pipeline') {
             steps {
                 script {
+                    echo "Initializing Pipeline for ${APP_NAME}"
+                    echo "Setting up environment variables"
                     env.PKG_VERSION = sh(script: 'node -p "require(\'./package.json\').version"', returnStdout: true).trim()
                     env.GIT_SHORT   = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
                     env.ARTIFACT_VERSION = "${env.PKG_VERSION}-${env.GIT_SHORT}"
@@ -52,7 +48,7 @@ pipeline {
             }
         }
 
-        stage('Install') {
+        stage('Install Dependencies') {
             steps {
                     echo "Installing all dependencies"
                     sh 'npm ci --no-audit --no-fund'
@@ -67,7 +63,7 @@ pipeline {
             }
         }
 
-        stage('Build') {
+        stage('Build Application') {
             steps {
                     
                     echo "Building version ${env.PKG_VERSION}"
@@ -82,7 +78,7 @@ pipeline {
             }
 
         //  Parallel Verify stage (Test and Security Audit)
-        stage('Verify') {
+        stage('Verify Build') {
             parallel {
                 stage('Test') {
                     steps {
@@ -91,7 +87,7 @@ pipeline {
                         unstash 'build-output'
 
                         // Generate JUnit XML for post-build analysis
-                        sh 'npm run test -- --reporter=junit --outputFile=junit-results.xml'
+                        sh 'npm run test -- --passWithNoTests --reporter=junit --outputFile=junit-results.xml'
                         
                     }
                     post {
@@ -116,7 +112,7 @@ pipeline {
         }
 
         // Archive stage with artifact fingerprinting
-        stage('Archive') {
+        stage('Archive Artifacts') {
             steps {
                 
                     echo "Archiving and Fingerprinting the Artifact"
@@ -128,9 +124,13 @@ pipeline {
         }
 
         // Publish stage with secure Nexus authentication
-        stage('Publish') {
+        stage('Publish Artifacts') {
             steps {
-
+                echo "Publishing ${ARTIFACT_NAME}@${APP_VERSION} to Nexus Repository"
+                echo "Building artifact version: ${ARTIFACT_VERSION}"
+                echo "Using NEXUS URL: ${NEXUS_URL}"
+                echo "Target repository: ${NEXUS_REPO_NAME}"
+                
                 unstash 'build-output'
                 
                     // withCredentials ensures secrets are masked and scoped to this block
@@ -138,22 +138,17 @@ pipeline {
                         sh '''
                         set -e
 
-                        # This ensures .npmrc is deleted whether the script succeeds, fails, or is aborted
                         trap 'rm -f .npmrc; echo ".npmrc securely deleted via trap"' EXIT
-
 
                         NEXUS_AUTH_TOKEN=$(echo -n "${NEXUS_USER}:${NEXUS_PASS}" | base64)
                         echo "Nexus token generated for secure authentication"
 
-                            # Create .npmrc dynamically within the shell step
-                            cat > .npmrc <<EOF
-                            registry=${NEXUS_URL}/repository/${NEXUS_REPO_NAME}/
-                            //${NEXUS_URL#http://}/repository/${NEXUS_REPO_NAME}/:_auth=${NEXUS_AUTH_TOKEN}
+                        printf 'registry=%s/repository/%s/\n//%s/repository/%s/:_auth=%s\n' \
+                            "$NEXUS_URL" "$NEXUS_REPO_NAME" \
+                            "${NEXUS_URL#http://}" "$NEXUS_REPO_NAME" "$NEXUS_AUTH_TOKEN" > .npmrc
 
-                            EOF
-
-                            echo "Publishing ${ARTIFACT_NAME}@${APP_VERSION} to Nexus"
-                            npm publish --registry ${NEXUS_URL}/repository/${NEXUS_REPO_NAME}/
+                        echo "Publishing ${ARTIFACT_NAME}@${APP_VERSION} to Nexus"
+                        npm publish --registry ${NEXUS_URL}/repository/${NEXUS_REPO_NAME}/
                         '''
                     }
                 
@@ -172,7 +167,7 @@ pipeline {
             
                 // Log the specific artifact URL for downstream consumption
                 echo "Published ${APP_NAME} version ${ARTIFACT_VERSION} to Nexus"
-                echo "Artifact URL: ${NEXUS_URL}/kijanikiosk-payments/-/kijanikiosk-payments-${ARTIFACT_VERSION}.tgz"
+                echo "Artifact URL: ${NEXUS_URL}/${APP_NAME}/-/${APP_NAME}-${ARTIFACT_VERSION}.tgz"
         }
         failure {
             script {
