@@ -275,7 +275,7 @@ In Jenkins declarative pipelines, all branches of a parallel block execute concu
 
 ## Summary
 
-| # | Fault Injection Stage | Fault Injected | Stages Ran | Stages Skipped | Pipeline Result | Return to Green |
+| | Fault Injection Stage | Fault Injected | Stages Ran | Stages Skipped | Pipeline Result | Return to Green |
 |---|----------------------|----------------|------------|----------------|-----------------|-----------------|
 | 1 | Initialize Pipeline | Corrupt `package.json` | 1 of 7 | 6 of 7 | FAILURE | Yes |
 | 2 | Install Dependencies | Missing `package-lock.json` | 2 of 7 | 5 of 7 | FAILURE | Yes |
