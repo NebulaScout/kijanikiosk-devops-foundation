@@ -1,0 +1,4 @@
+service_group: kijanikiosk
+base_dir: /opt/kijanikiosk
+log_dir: /var/log/kijanikiosk
+ssh_key_path: ~/.ssh/main-key.pem
