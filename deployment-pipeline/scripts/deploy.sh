@@ -5,8 +5,8 @@
 set -euo pipefail
 
 # ── Configuration ────────────────────────────────────────────────────────────
-APP_VERSION="${APP_VERSION:-v1.3.0}"
-DEPLOY_ENV="${DEPLOY_ENV:-blue}"
+APP_VERSION="${APP_VERSION:-v1.4.0}"
+DEPLOY_ENV="${DEPLOY_ENV:-green}"
 ARTIFACT_BASE_URL="${ARTIFACT_BASE_URL:-http://127.0.0.1:8080}"
 BLUE_PORT="${BLUE_PORT:-3000}"
 GREEN_PORT="${GREEN_PORT:-3001}"
