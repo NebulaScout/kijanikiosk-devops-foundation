@@ -1,0 +1,73 @@
+=== TERMINAL OUTPUT ===
+[05:16:34] [MONITOR] === Post-deployment monitoring: green environment ===                                            
+[05:16:34] [MONITOR] Confidence window: 60s | Poll interval: 5s                                                       
+[05:16:34] [MONITOR] Poll 1: HTTP 000 | 0s | elapsed: 0s                                                              
+[05:16:34] [MONITOR WARN] Health check failed (consecutive: 1, window errors: 1)                                      
+[05:16:39] [MONITOR] Poll 2: HTTP 000 | 0s | elapsed: 5s
+[05:16:39] [MONITOR WARN] Health check failed (consecutive: 2, window errors: 2)
+[05:16:44] [MONITOR] Poll 3: HTTP 000 | 0s | elapsed: 10s
+[05:16:44] [MONITOR WARN] Health check failed (consecutive: 3, window errors: 3)
+[05:16:44] [MONITOR FAIL] ROLLBACK TRIGGERED: 3 consecutive health check failures
+[05:16:44] [MONITOR FAIL] Calling rollback.sh...
+[05:16:44] [ROLLBACK] Rolling back to previous environment: blue
+[05:16:44] [ROLLBACK] Calling switch-env.sh blue...
+[05:16:44] Current environment: green
+[05:16:44] Target environment: blue
+[05:16:44] Step 1: Verifying blue is healthy on port 3000...
+[05:16:44] Pre-switch health check passed: blue is healthy
+[05:16:44] Step 2: Writing new nginx active-env configuration...
+[05:16:44] Step 3: Validating nginx configuration...
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+[05:16:44] Recorded previous environment: green
+[05:16:44] Step 4: Reloading nginx...
+2026/08/03 08:16:44 [notice] 1176526#1176526: signal process started
+[05:16:44] nginx reloaded. Traffic now routing to blue.
+[05:16:44] Step 5: Confirming switch via proxy health check...
+[05:16:46] Post-switch confirmation passed: proxy is routing to blue (port 3000)
+[05:16:46] === Switch to blue complete ===
+[05:16:46] [ROLLBACK] Rollback to blue successful.
+[05:16:46] [MONITOR] Rollback completed successfully.
+
+
+=== ROLLBACK EVIDENCE LOG ===
+Test Scenario: Controlled fault injection on Green environment
+
+1. TIMESTAMPS
+T0 (Fault Introduced): 05:16:34
+   - Evidence: First health check failure recorded immediately at monitor start.
+   - Log: "[05:16:34] [MONITOR WARN] Health check failed (consecutive: 1)"
+
+T1 (Rollback Triggered): 05:16:44
+   - Evidence: 3 consecutive failures detected within confidence window.
+   - Log: "[05:16:44] [MONITOR FAIL] ROLLBACK TRIGGERED: 3 consecutive health check failures"
+
+T2 (Rollback Confirmed): 05:16:46
+   - Evidence: Nginx reloaded and proxy health check passed for Blue.
+   - Log: "[05:16:46] Post-switch confirmation passed: proxy is routing to blue (port 3000)"
+
+2. PERFORMANCE METRICS
+Total Duration (T0 to T2): 12 seconds
+Requirement: < 90 seconds
+Status: PASS (12s < 90s)
+
+Detection Logic:
+- Confidence Window: 60s
+- Poll Interval: 5s
+- Failure Threshold: 3 consecutive errors
+- Time to Detect: 10s (3 polls * 5s interval)
+
+3. POST-ROLLBACK VERIFICATION
+Endpoint Check:
+- Command: curl http://127.0.0.1:80/health
+- Output: {"status":"ok","version":"v1.3.0","port":3000}
+
+State File Verification:
+- Command: cat /opt/kijanikiosk/.active-env 
+  Output: blue
+
+- Command: cat /opt/kijanikiosk/.previous-env 
+  Output: green
+
+4. CONCLUSION
+The monitor successfully detected the simulated fault on the Green environment and executed an automatic rollback to Blue without human intervention. Traffic was restored to the stable version within 12 seconds.   
