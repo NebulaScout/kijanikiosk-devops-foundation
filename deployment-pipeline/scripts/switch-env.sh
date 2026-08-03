@@ -92,6 +92,11 @@ if ! nginx -t 2>&1; then
     exit 2
 fi
 
+# Record the current environment as the previous env (for rollback)
+echo "${CURRENT_ENV}" > "${ACTIVE_ENV_STATE}.previous"
+mv "${ACTIVE_ENV_STATE}.previous" "/opt/kijanikiosk/.previous-env"
+log "Recorded previous environment: ${CURRENT_ENV}"
+
 # Step 4: Reload nginx (the actual switch)
 log "Step 4: Reloading nginx..."
 if ! nginx -s reload; then
