@@ -1,0 +1,22 @@
+Self-Healing Test Results
+Deployment: kk-payments
+
+T0 (Pod Deletion): 2026-08-05 12:18:07
+Deleted Pod: kk-payments-7b755dd488-2s28w
+
+T1 (Replacement Running): 2026-08-05 12:18:10
+New Pod: kk-payments-7b755dd488-vtdr8
+
+Self-Healing Time: 3 seconds
+
+Verification:
+NAME                           READY   STATUS    RESTARTS   AGE
+kk-payments-7b755dd488-rq54f   1/1     Running   0          10m
+kk-payments-7b755dd488-vtdr8   0/1     Running   0          2s
+
+Live Events:
+2m46s       Normal    Created             pod/kk-payments-7b755dd488-2s28w    Container created
+2m46s       Normal    Scheduled           pod/kk-payments-7b755dd488-2s28w    Successfully assigned default/kk-payments-7b755dd488-2s28w to minikube
+2s          Normal    Created             pod/kk-payments-7b755dd488-vtdr8    Container created
+2s          Normal    Scheduled           pod/kk-payments-7b755dd488-vtdr8    Successfully assigned default/kk-payments-7b755dd488-vtdr8 to minikube
+2s          Normal    SuccessfulCreate    replicaset/kk-payments-7b755dd488   Created pod: kk-payments-7b755dd488-vtdr8
