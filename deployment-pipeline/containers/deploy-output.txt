@@ -1,0 +1,9 @@
+deployment.apps/kk-payments created
+// pods
+NAME                           READY   STATUS    RESTARTS   AGE
+kk-payments-7b755dd488-hnr2v   1/1     Running   0          44s
+kk-payments-7b755dd488-rq54f   1/1     Running   0          44s
+
+// deployment-status
+NAME          READY   UP-TO-DATE   AVAILABLE   AGE
+kk-payments   2/2     2            2           89s
