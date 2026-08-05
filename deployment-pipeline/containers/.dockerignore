@@ -1,0 +1,7 @@
+node_modules/       # Already installed inside the image; sending this adds ~200MB to the context
+.git/               # Build metadata, not application code
+*.test.js           # Test files not needed at runtime
+.env                # Local environment variables; NEVER let these into an image
+coverage/           # Test coverage reports
+dist/               # See note below about when to include or exclude this
+README.md           # Documentation: not needed at runtime

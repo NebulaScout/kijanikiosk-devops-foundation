@@ -1,0 +1,53 @@
+Building image: nebulascout/kijani-kiosk:1.0.0-61f5243                                                                
+[+] Building 3.4s (18/18) FINISHED                                                                     docker:default 
+ => [internal] load build definition from Dockerfile.production                                                  0.0s 
+ => => transferring dockerfile: 1.95kB                                                                           0.0s 
+ => [internal] load metadata for docker.io/library/node:20-alpine                                                0.0s 
+ => [internal] load metadata for docker.io/library/nginx:1.27-alpine                                             1.5s 
+ => [auth] library/nginx:pull token for registry-1.docker.io                                                     0.0s 
+ => [internal] load .dockerignore                                                                                0.0s 
+ => => transferring context: 2B                                                                                  0.0s
+ => [builder 1/6] FROM docker.io/library/node:20-alpine                                                          0.0s
+ => [internal] load build context                                                                                1.7s
+ => => transferring context: 1.97MB                                                                              1.6s
+ => [production 1/5] FROM docker.io/library/nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3  0.0s
+ => CACHED [production 2/5] RUN apk add --no-cache wget &&     addgroup -S kijani &&     adduser -S kijani -G k  0.0s
+ => CACHED [production 3/5] COPY nginx.conf /etc/nginx/conf.d/default.conf                                       0.0s
+ => CACHED [builder 2/6] WORKDIR /app                                                                            0.0s
+ => CACHED [builder 3/6] COPY package.json package-lock.json ./                                                  0.0s
+ => CACHED [builder 4/6] RUN npm ci                                                                              0.0s
+ => CACHED [builder 5/6] COPY . .                                                                                0.0s
+ => CACHED [builder 6/6] RUN npm run build                                                                       0.0s
+ => CACHED [production 4/5] COPY --from=builder /app/out /usr/share/nginx/html                                   0.0s
+ => CACHED [production 5/5] RUN chown -R kijani:kijani /usr/share/nginx/html &&     chown -R kijani:kijani /var  0.0s
+ => exporting to image                                                                                           0.0s
+ => => exporting layers                                                                                          0.0s
+ => => writing image sha256:afe10cf0bfe62b8da2c90295954505c4464412e0ba27f026cbe85d47e58a83c5                     0.0s
+ => => naming to docker.io/nebulascout/kijani-kiosk:1.0.0-61f5243   
+                                              0.0s
+Pushing image to registry...
+The push refers to repository [docker.io/nebulascout/kijani-kiosk]
+d29adbe87f77: Pushed 
+879d9ebfe6ba: Pushed 
+053a80fbd516: Pushed 
+f00a632881be: Pushed 
+0d853d50b128: Mounted from nebulascout/kk-payments 
+947e805a4ac7: Mounted from nebulascout/kk-payments 
+811a4dbbf4a5: Mounted from nebulascout/kk-payments 
+b8d7d1d22634: Mounted from nebulascout/kk-payments 
+e244aa659f61: Mounted from nebulascout/kk-payments 
+c56f134d3805: Mounted from nebulascout/kk-payments 
+d71eae0084c1: Mounted from nebulascout/kk-payments 
+08000c18d16d: Mounted from nebulascout/kk-payments 
+1.0.0-61f5243: digest: sha256:528130a10bc332b170d42623d41aaa39dd043bf48a4166b07e0db4e0221d9a3c size: 2826
+
+Verifying registry is the source of truth...
+Untagged: nebulascout/kijani-kiosk:1.0.0-61f5243
+Untagged: nebulascout/kijani-kiosk@sha256:528130a10bc332b170d42623d41aaa39dd043bf48a4166b07e0db4e0221d9a3c
+
+Pulling fresh image from registry...
+1.0.0-61f5243: Pulling from nebulascout/kijani-kiosk
+Digest: sha256:528130a10bc332b170d42623d41aaa39dd043bf48a4166b07e0db4e0221d9a3c
+Status: Downloaded newer image for nebulascout/kijani-kiosk:1.0.0-61f5243
+docker.io/nebulascout/kijani-kiosk:1.0.0-61f5243
+Success! Image nebulascout/kijani-kiosk:1.0.0-61f5243 is verified from the registry.

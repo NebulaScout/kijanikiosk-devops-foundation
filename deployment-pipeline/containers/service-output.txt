@@ -1,0 +1,22 @@
+service/kk-payments-service created
+
+NAME                  ENDPOINTS                           AGE
+kk-payments-service   10.244.0.30:3001,10.244.0.33:3001   19s
+
+*   Trying 192.168.49.2:30001...
+* Established connection to 192.168.49.2 (192.168.49.2 port 30001) from 192.168.49.1 port 55212 
+* using HTTP/1.x
+> GET /health HTTP/1.1
+> Host: 192.168.49.2:30001
+> User-Agent: curl/8.18.0
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 404 Not Found
+< Server: nginx/1.27.5
+< Date: Wed, 05 Aug 2026 09:40:36 GMT
+< Content-Type: text/html
+< Content-Length: 153
+< Connection: keep-alive
+* Connection #0 to host 192.168.49.2:30001 left intact
+
