@@ -27,18 +27,18 @@ spec:
         - name: kijani-registry-credentials
       containers:
         - name: kk-payments
-          image: docker.io/nebulascout/kijani-kiosk:1.1.0-61f5243
+          image: docker.io/nebulascout/kijani-kiosk:1.1.0-8a9b2c3
           ports:
             - containerPort: 3001
               protocol: TCP
           resources:
             requests:
-              memory: "64Mi"
+              memory: "128Mi"
               cpu: "100m"
             limits:
               memory: "256Mi"
               cpu: "500m"
-          readinessProbe:
+          readinessProbe: # Controls Traffic Routing
             httpGet:
               path: /
               port: 3001
@@ -46,7 +46,7 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
-          livenessProbe:
+          livenessProbe: # Controls Pod Restart
             httpGet:
               path: /
               port: 3001
@@ -54,4 +54,7 @@ spec:
             periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 3
+          envFrom:
+            - configMapRef:
+                name: kk-payments-config
       restartPolicy: Always
