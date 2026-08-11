@@ -2,13 +2,14 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kk-payments
-  annotations:
-    kubernetes.io/change-cause: "Update kk-payments to v1.1.0: fix payment processing latency"
   labels:
     app: kk-payments
     component: payments
+  annotations:
+    kubernetes.io/change-cause: "Initial production-approaching deployment: v1.1.0"
 spec:
   replicas: 3
+  revisionHistoryLimit: 10
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -27,7 +28,7 @@ spec:
         - name: kijani-registry-credentials
       containers:
         - name: kk-payments
-          image: docker.io/nebulascout/kijani-kiosk:1.1.0-8a9b2c3
+          image: docker.io/nebulascout/kk-payments:v1.1.0
           ports:
             - containerPort: 3001
               protocol: TCP
@@ -38,23 +39,24 @@ spec:
             limits:
               memory: "256Mi"
               cpu: "500m"
-          readinessProbe: # Controls Traffic Routing
+          envFrom:
+            - configMapRef:
+                name: kk-payments-config
+            - secretRef:
+                name: kk-payments-secrets
+          readinessProbe:
             httpGet:
-              path: /
+              path: /health
               port: 3001
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
-          livenessProbe: # Controls Pod Restart
+          livenessProbe:
             httpGet:
-              path: /
+              path: /health
               port: 3001
             initialDelaySeconds: 15
             periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 3
-          envFrom:
-            - configMapRef:
-                name: kk-payments-config
-      restartPolicy: Always
