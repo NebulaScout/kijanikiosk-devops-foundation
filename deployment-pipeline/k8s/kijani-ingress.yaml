@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kijani-ingress
+  namespace: kijani-project
+  annotations:
+    # Strips the /payments or /api prefix before forwarding to the backend
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: kijani.local
+      http:
+        paths:
+          - path: /payments
+            pathType: Prefix
+            backend:
+              service:
+                name: kk-payments  
+                port:
+                  number: 3001     # Matches the 'port' in kk-payments Service
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: kk-api      
+                port:
+                  number: 8080     

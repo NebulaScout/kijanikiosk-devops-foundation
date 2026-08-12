@@ -34,7 +34,7 @@ docker build \
 echo "Pushing image to registry..."
 docker push "${FULL_IMAGE}"
 
-# 4. Verify Source of Truth (Delete Local & Pull Fresh)
+# Verify Source of Truth (Delete Local & Pull Fresh)
 echo "Verifying registry is the source of truth..."
 
 # Remove the local image forcefully to ensure we don't run from cache
