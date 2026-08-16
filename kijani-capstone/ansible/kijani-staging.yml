@@ -1,0 +1,112 @@
+---
+- name: Configure KijaniKiosk staging namespace guardrails
+  hosts: control
+  connection: local
+  gather_facts: false
+
+  vars:
+    staging_namespace: "{{ lookup('env', 'STAGING_NAMESPACE') | default('kijani-staging', true) }}"
+    kubeconfig: "{{ lookup('env', 'KUBECONFIG') | default(lookup('env', 'HOME') + '/.kube/config', true) }}"
+    kube_context: "{{ lookup('env', 'KUBE_CONTEXT') | default(omit, true) }}"
+
+  module_defaults:
+    kubernetes.core.k8s:
+      kubeconfig: "{{ kubeconfig }}"
+      context: "{{ kube_context }}"
+
+  tasks:
+    - name: Confirm Terraform created the staging namespace
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Namespace
+        name: "{{ staging_namespace }}"
+      register: staging_namespace_info
+
+    - name: Stop when the Terraform namespace is absent
+      ansible.builtin.assert:
+        that:
+          - staging_namespace_info.resources | length == 1
+        fail_msg: >-
+          {{ staging_namespace }} is absent. Run terraform apply from
+          kijani-capstone/terraform before this playbook.
+
+    - name: Apply staging namespace labels managed by Ansible
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ staging_namespace }}"
+            labels:
+              kijani.io/configured-by: ansible
+              pod-security.kubernetes.io/enforce: baseline
+              pod-security.kubernetes.io/audit: baseline
+              pod-security.kubernetes.io/warn: baseline
+
+    - name: Limit aggregate resource consumption in staging
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: ResourceQuota
+          metadata:
+            name: kijani-staging-quota
+            namespace: "{{ staging_namespace }}"
+          spec:
+            hard:
+              requests.cpu: "2"
+              requests.memory: 2Gi
+              limits.cpu: "4"
+              limits.memory: 4Gi
+              pods: "10"
+
+    - name: Apply default container resource bounds in staging
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: LimitRange
+          metadata:
+            name: kijani-staging-container-limits
+            namespace: "{{ staging_namespace }}"
+          spec:
+            limits:
+              - type: Container
+                defaultRequest:
+                  cpu: 100m
+                  memory: 128Mi
+                default:
+                  cpu: 500m
+                  memory: 512Mi
+
+    - name: Deny ingress traffic by default in staging
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: default-deny-ingress
+            namespace: "{{ staging_namespace }}"
+          spec:
+            podSelector: {}
+            policyTypes:
+              - Ingress
+
+    - name: Allow traffic only between pods in the staging namespace
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: allow-staging-internal-ingress
+            namespace: "{{ staging_namespace }}"
+          spec:
+            podSelector: {}
+            policyTypes:
+              - Ingress
+            ingress:
+              - from:
+                  - podSelector: {}
