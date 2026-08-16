@@ -5,6 +5,8 @@ namespace: kijani-staging
 
 resources:
   - ../../base
+  - ingress.yml
+  - ../../observability
 
 configMapGenerator:
   - name: kk-payments-config
