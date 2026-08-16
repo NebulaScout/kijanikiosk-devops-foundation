@@ -80,3 +80,17 @@ merge to `develop`) then runs the release sequence below:
 The smoke pod runs in `kijani-staging`, so it is permitted by the namespace's
 internal-only NetworkPolicy. The Jenkins agent needs `kubectl` with Kustomize
 support and permission to pull `curlimages/curl:8.12.1` in staging.
+
+## Step 4: observability promotion guardrail
+
+The staging overlay includes a `PrometheusRule` for the critical
+`KKPaymentsHighErrorRate` alert. It uses the Ingress NGINX request counter and
+fires when staging 5xx responses exceed 5% for two minutes. The Jenkins
+pipeline waits 150 seconds after the smoke test, then queries Prometheus for
+the rule's firing series. A firing alert fails the build before the approval
+gate is reached.
+
+Install the monitoring prerequisites described in
+[`k8s/observability/README.md`](k8s/observability/README.md) before running the
+pipeline. The pipeline verifies the PrometheusRule CRD, ingress controller, and
+Prometheus service explicitly, so it cannot silently bypass this guardrail.

@@ -39,6 +39,7 @@ terraform.rc
 *.pem
 
 .env
+kijani-capstone/kijanikiosk-kubeconfig
 terminal.output.log
 
 # Logs
