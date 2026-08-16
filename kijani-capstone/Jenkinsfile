@@ -1,0 +1,234 @@
+pipeline {
+    agent any
+
+    environment {
+        STAGING_NAMESPACE    = 'kijani-staging'
+        PRODUCTION_NAMESPACE = 'default'
+        MANIFEST_ROOT        = 'kijani-capstone/k8s'
+        KUBE_CONTEXT         = 'minikube'
+        KUBECTL_VERSION      = '1.31.0'
+        KUSTOMIZE_VERSION    = 'v5.4.3'
+    }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        disableConcurrentBuilds()
+        timestamps()
+    }
+
+    stages {
+        stage('Install CLI Tools') {
+            steps {
+                sh '''
+                    set -euo pipefail
+                    
+                    echo "== Installing kubectl =="
+                    # Download kubectl
+                    curl -LO "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+                    chmod +x kubectl
+                    
+                    echo "=== Installing kustomize ==="
+                    # Download the published release asset for this exact tag.
+                    KUST_NAME="kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+                    curl -fsSLO "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/${KUSTOMIZE_VERSION}/${KUST_NAME}"
+                    
+                    # Verify download is not empty
+                    if [ ! -s "$KUST_NAME" ]; then
+                        echo "ERROR: Download failed or file is empty."
+                        cat "$KUST_NAME"
+                        exit 1
+                    fi
+                    
+                    tar -xzf "$KUST_NAME"
+                    
+                    echo "=== Verifying Installation ==="
+                    ls -l kubectl kustomize
+                    
+                    # Add current directory to PATH for this session
+                    export PATH="$PWD:$PATH"
+                    
+                    kubectl version --client
+                    kustomize version
+                '''
+            }
+        }
+
+        stage('Validate Kubernetes manifests') {
+            steps {
+                withCredentials([file(credentialsId: 'kijanikiosk-kubeconfig', variable: 'KUBECONFIG_SOURCE')]) {
+                    sh '''
+                        set -euo pipefail
+                        export PATH="$PWD:$PATH"
+                        flattened_kubeconfig="$(mktemp)"
+                        trap 'rm -f "${flattened_kubeconfig}"' EXIT
+
+                        if ! kubectl --kubeconfig "${KUBECONFIG_SOURCE}" config view --raw --flatten > "${flattened_kubeconfig}"; then
+                            echo "ERROR: The Jenkins kubeconfig credential is not self-contained."
+                            echo "It still references external cert files, which is what Minikube-style kubeconfigs do."
+                            echo "Regenerate the credential with embedded data, for example:"
+                            echo "  kubectl config view --raw --flatten --minify > kubeconfig"
+                            echo "Then upload that file as the Jenkins secret file credential."
+                            exit 1
+                        fi
+
+                        export KUBECONFIG="${flattened_kubeconfig}"
+                        echo "Using flattened kubeconfig: ${KUBECONFIG}"
+                        if ! kubectl config get-contexts -o name | grep -Fx "${KUBE_CONTEXT}" >/dev/null; then
+                            echo "ERROR: Expected Kubernetes context '${KUBE_CONTEXT}' is missing from the Jenkins credential."
+                            echo "Available contexts (if any):"
+                            kubectl config get-contexts -o name || true
+                            exit 1
+                        fi
+                        kubectl config use-context "${KUBE_CONTEXT}"
+                        kubectl config current-context
+                        kubectl kustomize "${MANIFEST_ROOT}/overlays/staging" >/dev/null
+                        kubectl kustomize "${MANIFEST_ROOT}/overlays/production" >/dev/null
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy staging') {
+    when {
+        branch 'develop'
+    }
+    steps {
+        withCredentials([file(credentialsId: 'kijanikiosk-kubeconfig', variable: 'KUBECONFIG_SOURCE')]) {
+            sh '''
+                set -euo pipefail
+                export PATH="$PWD:$PATH"
+                flattened_kubeconfig="$(mktemp)"
+                trap 'rm -f "${flattened_kubeconfig}"' EXIT
+
+                if ! kubectl --kubeconfig "${KUBECONFIG_SOURCE}" config view --raw --flatten > "${flattened_kubeconfig}"; then
+                    echo "ERROR: The Jenkins kubeconfig credential is not self-contained."
+                    echo "It still references external cert files, which is what Minikube-style kubeconfigs do."
+                    echo "Regenerate the credential with embedded data, for example:"
+                    echo "  kubectl config view --raw --flatten --minify > kubeconfig"
+                    echo "Then upload that file as the Jenkins secret file credential."
+                    exit 1
+                fi
+
+                export KUBECONFIG="${flattened_kubeconfig}"
+                echo "Using flattened kubeconfig: ${KUBECONFIG}"
+                if ! kubectl config get-contexts -o name | grep -Fx "${KUBE_CONTEXT}" >/dev/null; then
+                    echo "ERROR: Expected Kubernetes context '${KUBE_CONTEXT}' is missing from the Jenkins credential."
+                    echo "Available contexts (if any):"
+                    kubectl config get-contexts -o name || true
+                    exit 1
+                fi
+                kubectl config use-context "${KUBE_CONTEXT}"
+                kubectl config current-context
+                # Removed --minify flag that was causing path errors
+                kubectl --namespace "${STAGING_NAMESPACE}" apply -k "${MANIFEST_ROOT}/overlays/staging"
+                kubectl --namespace "${STAGING_NAMESPACE}" rollout status deployment/kk-payments --timeout=180s
+            '''
+        }
+    }
+}
+
+        stage('Smoke test staging') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                withCredentials([file(credentialsId: 'kijanikiosk-kubeconfig', variable: 'KUBECONFIG_SOURCE')]) {
+                    sh '''
+                        set -euo pipefail
+                        export PATH="$PWD:$PATH"
+                        flattened_kubeconfig="$(mktemp)"
+                        trap 'rm -f "${flattened_kubeconfig}"' EXIT
+
+                        if ! kubectl --kubeconfig "${KUBECONFIG_SOURCE}" config view --raw --flatten > "${flattened_kubeconfig}"; then
+                            echo "ERROR: The Jenkins kubeconfig credential is not self-contained."
+                            echo "It still references external cert files, which is what Minikube-style kubeconfigs do."
+                            echo "Regenerate the credential with embedded data, for example:"
+                            echo "  kubectl config view --raw --flatten --minify > kubeconfig"
+                            echo "Then upload that file as the Jenkins secret file credential."
+                            exit 1
+                        fi
+
+                        export KUBECONFIG="${flattened_kubeconfig}"
+                        echo "Using flattened kubeconfig: ${KUBECONFIG}"
+                        if ! kubectl config get-contexts -o name | grep -Fx "${KUBE_CONTEXT}" >/dev/null; then
+                            echo "ERROR: Expected Kubernetes context '${KUBE_CONTEXT}' is missing from the Jenkins credential."
+                            echo "Available contexts (if any):"
+                            kubectl config get-contexts -o name || true
+                            exit 1
+                        fi
+                        kubectl config use-context "${KUBE_CONTEXT}"
+                        kubectl config current-context
+                        smoke_pod="kk-payments-smoke-${BUILD_NUMBER}"
+                        kubectl --namespace "${STAGING_NAMESPACE}" run "${smoke_pod}" \
+                          --image=curlimages/curl:8.12.1 \
+                          --restart=Never \
+                          --rm \
+                          --attach \
+                          --command -- \
+                          curl --fail --show-error --silent --max-time 10 \
+                          http://kk-payments:3001/health
+                    '''
+                }
+            }
+        }
+
+        stage('Approve production deployment') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                input message: 'Staging rollout and smoke test passed. Deploy kk-payments to production?',
+                      ok: 'Deploy production',
+                      submitterParameter: 'PRODUCTION_APPROVER'
+            }
+        }
+
+        stage('Deploy production') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                withCredentials([file(credentialsId: 'kijanikiosk-kubeconfig', variable: 'KUBECONFIG_SOURCE')]) {
+                    sh '''
+                        set -euo pipefail
+                        export PATH="$PWD:$PATH"
+                        flattened_kubeconfig="$(mktemp)"
+                        trap 'rm -f "${flattened_kubeconfig}"' EXIT
+
+                        if ! kubectl --kubeconfig "${KUBECONFIG_SOURCE}" config view --raw --flatten > "${flattened_kubeconfig}"; then
+                            echo "ERROR: The Jenkins kubeconfig credential is not self-contained."
+                            echo "It still references external cert files, which is what Minikube-style kubeconfigs do."
+                            echo "Regenerate the credential with embedded data, for example:"
+                            echo "  kubectl config view --raw --flatten --minify > kubeconfig"
+                            echo "Then upload that file as the Jenkins secret file credential."
+                            exit 1
+                        fi
+
+                        export KUBECONFIG="${flattened_kubeconfig}"
+                        echo "Using flattened kubeconfig: ${KUBECONFIG}"
+                        if ! kubectl config get-contexts -o name | grep -Fx "${KUBE_CONTEXT}" >/dev/null; then
+                            echo "ERROR: Expected Kubernetes context '${KUBE_CONTEXT}' is missing from the Jenkins credential."
+                            echo "Available contexts (if any):"
+                            kubectl config get-contexts -o name || true
+                            exit 1
+                        fi
+                        kubectl config use-context "${KUBE_CONTEXT}"
+                        kubectl config current-context
+                        kubectl --namespace "${PRODUCTION_NAMESPACE}" apply -k "${MANIFEST_ROOT}/overlays/production"
+                        kubectl --namespace "${PRODUCTION_NAMESPACE}" rollout status deployment/kk-payments --timeout=180s
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully.'
+        }
+        failure {
+            echo 'Pipeline failed. Production is not deployed unless the failure occurred after approval.'
+        }
+    }
+}

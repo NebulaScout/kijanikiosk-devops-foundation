@@ -9,7 +9,7 @@ resources:
 configMapGenerator:
   - name: kk-payments-config
     envs:
-      - kk-payments.env
+      - kk-payments.properties
 
 labels:
   - pairs:
