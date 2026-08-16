@@ -111,3 +111,27 @@
             ingress:
               - from:
                   - podSelector: {}
+
+    - name: Allow the ingress controller to route staging requests
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: allow-ingress-nginx
+            namespace: "{{ staging_namespace }}"
+          spec:
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: kk-payments
+            policyTypes:
+              - Ingress
+            ingress:
+              - from:
+                  - namespaceSelector:
+                      matchLabels:
+                        kubernetes.io/metadata.name: ingress-nginx
+                    podSelector:
+                      matchLabels:
+                        app.kubernetes.io/name: ingress-nginx
