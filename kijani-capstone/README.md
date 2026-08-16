@@ -59,8 +59,8 @@ Configure the Jenkins multibranch job with script path
 references the manifests under `kijani-capstone/k8s`. Its kubeconfig identity
 must be able to deploy to `kijani-staging` and `default`.
 
-Every branch validates both Kustomize overlays. A build on `main` (including a
-merge to `main`) then runs the release sequence below:
+Every branch validates both Kustomize overlays. A build on `develop` (including a
+merge to `develop`) then runs the release sequence below:
 
 1. Applies the staging overlay and waits for `kk-payments` to become ready.
 2. Runs a disposable in-cluster curl pod against `http://kk-payments:3001/health`.

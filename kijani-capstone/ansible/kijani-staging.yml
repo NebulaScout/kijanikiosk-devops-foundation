@@ -5,6 +5,7 @@
   gather_facts: false
 
   vars:
+  # place this in a dedicated file and use lookup() to avoid hardcoding sensitive values in the playbook
     staging_namespace: "{{ lookup('env', 'STAGING_NAMESPACE') | default('kijani-staging', true) }}"
     kubeconfig: "{{ lookup('env', 'KUBECONFIG') | default(lookup('env', 'HOME') + '/.kube/config', true) }}"
     kube_context: "{{ lookup('env', 'KUBE_CONTEXT') | default(omit, true) }}"
