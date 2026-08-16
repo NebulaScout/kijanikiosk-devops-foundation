@@ -1,0 +1,106 @@
+pipeline {
+    agent any
+
+    environment {
+        STAGING_NAMESPACE    = 'kijani-staging'
+        PRODUCTION_NAMESPACE = 'default'
+        MANIFEST_ROOT        = 'kijani-capstone/k8s'
+    }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        disableConcurrentBuilds()
+        timestamps()
+    }
+
+    stages {
+        stage('Validate Kubernetes manifests') {
+            steps {
+                sh '''#!/usr/bin/env bash
+                    set -euo pipefail
+                    kubectl kustomize "${MANIFEST_ROOT}/overlays/staging" >/dev/null
+                    kubectl kustomize "${MANIFEST_ROOT}/overlays/production" >/dev/null
+                '''
+            }
+        }
+
+        stage('Deploy staging') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                withCredentials([file(credentialsId: 'kijanikiosk-kubeconfig', variable: 'KUBECONFIG')]) {
+                    sh '''#!/usr/bin/env bash
+                        set -euo pipefail
+                        kubectl --namespace "${STAGING_NAMESPACE}" apply -k "${MANIFEST_ROOT}/overlays/staging"
+                        kubectl --namespace "${STAGING_NAMESPACE}" rollout status deployment/kk-payments --timeout=180s
+                    '''
+                }
+            }
+        }
+
+        stage('Smoke test staging') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                withCredentials([file(credentialsId: 'kijanikiosk-kubeconfig', variable: 'KUBECONFIG')]) {
+                    sh '''#!/usr/bin/env bash
+                        set -euo pipefail
+                        smoke_pod="kk-payments-smoke-${BUILD_NUMBER}"
+
+                        # This runs inside kijani-staging, proving both the Service DNS
+                        # route and the workload health endpoint work after the rollout.
+                        kubectl --namespace "${STAGING_NAMESPACE}" run "${smoke_pod}" \
+                          --image=curlimages/curl:8.12.1 \
+                          --restart=Never \
+                          --rm \
+                          --attach \
+                          --command -- \
+                          curl --fail --show-error --silent --max-time 10 \
+                          http://kk-payments:3001/health
+                    '''
+                }
+            }
+        }
+
+        stage('Approve production deployment') {
+            when {
+                branch 'develop'
+            }
+            options {
+                timeout(time: 15, unit: 'MINUTES')
+            }
+            steps {
+                input message: 'Staging rollout and smoke test passed. Deploy kk-payments to production?',
+                      ok: 'Deploy production',
+                      submitterParameter: 'PRODUCTION_APPROVER'
+            }
+        }
+
+        stage('Deploy production') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                withCredentials([file(credentialsId: 'kijanikiosk-kubeconfig', variable: 'KUBECONFIG')]) {
+                    sh '''#!/usr/bin/env bash
+                        set -euo pipefail
+                        kubectl --namespace "${PRODUCTION_NAMESPACE}" apply -k "${MANIFEST_ROOT}/overlays/production"
+                        kubectl --namespace "${PRODUCTION_NAMESPACE}" rollout status deployment/kk-payments --timeout=180s
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully.'
+        }
+        failure {
+            echo 'Pipeline failed. Production is not deployed unless the failure occurred after approval.'
+        }
+    }
+}
