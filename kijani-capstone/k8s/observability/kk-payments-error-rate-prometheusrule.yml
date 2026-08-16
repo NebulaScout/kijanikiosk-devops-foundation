@@ -1,0 +1,41 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kk-payments-staging-alerts
+  labels:
+    app.kubernetes.io/name: kk-payments
+    app.kubernetes.io/part-of: kijani-kiosk
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: kijani-kiosk.kk-payments.staging
+      rules:
+        - alert: KKPaymentsHighErrorRate
+          expr: |
+            (
+              sum(rate(nginx_ingress_controller_requests{
+                namespace="kijani-staging",
+                service="kk-payments",
+                status=~"5.."
+              }[2m]))
+              /
+              clamp_min(
+                sum(rate(nginx_ingress_controller_requests{
+                  namespace="kijani-staging",
+                  service="kk-payments"
+                }[2m])),
+                0.001
+              )
+            ) > 0.05
+          for: 2m
+          labels:
+            severity: critical
+            service: kk-payments
+            environment: staging
+            namespace: kijani-staging
+          annotations:
+            summary: "kk-payments staging error rate exceeds 5%"
+            description: >-
+              More than 5% of requests routed by ingress to kk-payments in
+              kijani-staging returned HTTP 5xx for at least two minutes.
+            runbook_url: "https://example.invalid/kijani-kiosk/runbooks/kk-payments-error-rate"

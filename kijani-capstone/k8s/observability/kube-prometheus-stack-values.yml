@@ -1,0 +1,6 @@
+prometheus:
+  prometheusSpec:
+    # Discover the labelled PrometheusRule in kijani-staging rather than only
+    # rules installed by the Helm release in the monitoring namespace.
+    ruleSelectorNilUsesHelmValues: false
+    ruleNamespaceSelector: {}
