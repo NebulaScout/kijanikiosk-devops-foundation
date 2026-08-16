@@ -8,6 +8,10 @@ pipeline {
         KUBE_CONTEXT         = 'minikube'
         KUBECTL_VERSION      = '1.31.0'
         KUSTOMIZE_VERSION    = 'v5.4.3'
+        PROMETHEUS_NAMESPACE = 'monitoring'
+        PROMETHEUS_SERVICE   = 'kube-prometheus-stack-prometheus'
+        PROMETHEUS_PORT      = '9090'
+        ALERT_WAIT_SECONDS   = '150'
     }
 
     options {
@@ -128,6 +132,29 @@ pipeline {
     }
 }
 
+        stage('Verify monitoring prerequisites') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                withCredentials([file(credentialsId: 'kijanikiosk-kubeconfig', variable: 'KUBECONFIG_SOURCE')]) {
+                    sh '''
+                        set -euo pipefail
+                        export PATH="$PWD:$PATH"
+                        flattened_kubeconfig="$(mktemp)"
+                        trap 'rm -f "${flattened_kubeconfig}"' EXIT
+                        kubectl --kubeconfig "${KUBECONFIG_SOURCE}" config view --raw --flatten > "${flattened_kubeconfig}"
+                        export KUBECONFIG="${flattened_kubeconfig}"
+                        kubectl config use-context "${KUBE_CONTEXT}"
+
+                        kubectl get crd prometheusrules.monitoring.coreos.com >/dev/null
+                        kubectl --namespace ingress-nginx get service ingress-nginx-controller >/dev/null
+                        kubectl --namespace "${PROMETHEUS_NAMESPACE}" get service "${PROMETHEUS_SERVICE}" >/dev/null
+                    '''
+                }
+            }
+        }
+
         stage('Smoke test staging') {
             when {
                 branch 'develop'
@@ -168,6 +195,66 @@ pipeline {
                           --command -- \
                           curl --fail --show-error --silent --max-time 10 \
                           http://kk-payments:3001/health
+
+                        # Exercise the staging Ingress too, so the controller
+                        # records a request for the error-rate signal.
+                        kubectl --namespace "${STAGING_NAMESPACE}" run "${smoke_pod}-ingress" \
+                          --image=curlimages/curl:8.12.1 \
+                          --restart=Never \
+                          --rm \
+                          --attach \
+                          --command -- \
+                          curl --fail --show-error --silent --max-time 10 \
+                          --header 'Host: staging.kijani.local' \
+                          http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/health
+                    '''
+                }
+            }
+        }
+
+        stage('Evaluate staging alert state') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                withCredentials([file(credentialsId: 'kijanikiosk-kubeconfig', variable: 'KUBECONFIG_SOURCE')]) {
+                    sh '''
+                        set -euo pipefail
+                        export PATH="$PWD:$PATH"
+                        flattened_kubeconfig="$(mktemp)"
+                        port_forward_log="$(mktemp)"
+                        trap 'rm -f "${flattened_kubeconfig}" "${port_forward_log}"; [ -z "${prometheus_pid:-}" ] || kill "${prometheus_pid}" 2>/dev/null || true' EXIT
+                        kubectl --kubeconfig "${KUBECONFIG_SOURCE}" config view --raw --flatten > "${flattened_kubeconfig}"
+                        export KUBECONFIG="${flattened_kubeconfig}"
+                        kubectl config use-context "${KUBE_CONTEXT}"
+
+                        echo "Waiting ${ALERT_WAIT_SECONDS}s for Prometheus to evaluate the 2-minute alert rule..."
+                        sleep "${ALERT_WAIT_SECONDS}"
+
+                        kubectl --namespace "${PROMETHEUS_NAMESPACE}" port-forward \
+                          "service/${PROMETHEUS_SERVICE}" "${PROMETHEUS_PORT}:9090" >"${port_forward_log}" 2>&1 &
+                        prometheus_pid=$!
+
+                        for attempt in $(seq 1 15); do
+                            if curl --fail --silent http://127.0.0.1:"${PROMETHEUS_PORT}"/-/ready >/dev/null; then
+                                break
+                            fi
+                            [ "${attempt}" -eq 15 ] && { cat "${port_forward_log}"; exit 1; }
+                            sleep 2
+                        done
+
+                        query='ALERTS{alertname="KKPaymentsHighErrorRate",alertstate="firing",namespace="kijani-staging"}'
+                        result="$(curl --fail --silent --get \
+                          --data-urlencode "query=${query}" \
+                          http://127.0.0.1:"${PROMETHEUS_PORT}"/api/v1/query)"
+
+                        if ! printf '%s' "${result}" | grep -Eq '"result"[[:space:]]*:[[:space:]]*\[[[:space:]]*\]'; then
+                            echo "ERROR: KKPaymentsHighErrorRate is firing in staging; production promotion is blocked."
+                            echo "Prometheus response: ${result}"
+                            exit 1
+                        fi
+
+                        echo 'PASS: KKPaymentsHighErrorRate is not firing in staging.'
                     '''
                 }
             }
