@@ -68,5 +68,5 @@ dist-ssr
 *.sw?
 *.env
 
-kijani-capstone/capstone-scope.md
+*/capstone-scope.md
 *.pdf
