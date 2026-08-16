@@ -5,8 +5,8 @@ pipeline {
         STAGING_NAMESPACE    = 'kijani-staging'
         PRODUCTION_NAMESPACE = 'default'
         MANIFEST_ROOT        = 'kijani-capstone/k8s'
-        // KUBECTL_VERSION = '1.31.0'
-        // KUSTOMIZE_VERSION = 'v5.4.3'
+        KUBECTL_VERSION      = '1.31.0'
+        KUSTOMIZE_VERSION    = 'v5.4.3'
     }
 
     options {
@@ -17,73 +17,68 @@ pipeline {
     }
 
     stages {
-//         stage('Install CLI Tools') {
-//     steps {
-//         sh '''
-//             set -euo pipefail
-            
-//             echo "Downloading kubectl..."
-//             curl -LO "https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl"
-//             chmod +x kubectl
-            
-//             echo "Downloading kustomize..."
-//             curl -LO "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F5.4.3/kustomize_5.4.3_linux_amd64.tar.gz"
-//             tar -xzf kustomize_5.4.3_linux_amd64.tar.gz
-            
-//             # No need to move - files are already in current directory
-//             echo "Verifying installation in current directory..."
-//             ls -l kubectl kustomize
-            
-//             # Add current directory to PATH
-//             export PATH="$PWD:$PATH"
-//             echo "PATH updated: $PATH"
-//         '''
-//     }
-// }
-
-
-        // stage('Validate Kubernetes manifests') {
-        //     steps {
-        //         sh '''#!/usr/bin/env bash
-        //             set -euo pipefail
-        //             kubectl kustomize "${MANIFEST_ROOT}/overlays/staging" >/dev/null
-        //             kubectl kustomize "${MANIFEST_ROOT}/overlays/production" >/dev/null
-        //         '''
-        //     }
-        // }
-
-        stage('Validate Kubernetes manifests') {
-    steps {
-        withKubeConfig([credentialsId: 'kijanikiosk-kubeconfig', serverUrl: '']) {
-            script {
-                // This runs inside a container with kubectl/kustomize pre-installed
-                sh "kubectl kustomize '${MANIFEST_ROOT}/overlays/staging' >/dev/null"
-                sh "kubectl kustomize '${MANIFEST_ROOT}/overlays/production' >/dev/null"
+        stage('Install CLI Tools') {
+            steps {
+                sh '''
+                    set -euo pipefail
+                    
+                    echo "== Installing kubectl =="
+                    # Download kubectl
+                    curl -LO "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+                    chmod +x kubectl
+                    
+                    echo "=== Installing kustomize ==="
+                    # Download the published release asset for this exact tag.
+                    KUST_NAME="kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+                    curl -fsSLO "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/${KUSTOMIZE_VERSION}/${KUST_NAME}"
+                    
+                    # Verify download is not empty
+                    if [ ! -s "$KUST_NAME" ]; then
+                        echo "ERROR: Download failed or file is empty."
+                        cat "$KUST_NAME"
+                        exit 1
+                    fi
+                    
+                    tar -xzf "$KUST_NAME"
+                    
+                    echo "=== Verifying Installation ==="
+                    ls -l kubectl kustomize
+                    
+                    # Add current directory to PATH for this session
+                    export PATH="$PWD:$PATH"
+                    
+                    kubectl version --client
+                    kustomize version
+                '''
             }
         }
-    }
-}
+
+        stage('Validate Kubernetes manifests') {
+            steps {
+                sh '''
+                    set -euo pipefail
+                    export PATH="$PWD:$PATH"
+                    kubectl kustomize "${MANIFEST_ROOT}/overlays/staging" >/dev/null
+                    kubectl kustomize "${MANIFEST_ROOT}/overlays/production" >/dev/null
+                '''
+            }
+        }
 
         stage('Deploy staging') {
-    when {
-        branch 'develop'
-    }
-    steps {
-        // This replaces your withCredentials block
-        withKubeConfig([
-            credentialsId: 'kijanikiosk-kubeconfig', 
-            // serverUrl is optional. If you leave it empty, Jenkins uses the context from the kubeconfig file itself.
-            serverUrl: '' 
-        ]) {
-            sh '''
-                set -euo pipefail
-                # No need to set KUBECONFIG env var manually; withKubeConfig handles it
-                kubectl --namespace "${STAGING_NAMESPACE}" apply -k "${MANIFEST_ROOT}/overlays/staging"
-                kubectl --namespace "${STAGING_NAMESPACE}" rollout status deployment/kk-payments --timeout=180s
-            '''
+            when {
+                branch 'develop'
+            }
+            steps {
+                withCredentials([file(credentialsId: 'kijanikiosk-kubeconfig', variable: 'KUBECONFIG')]) {
+                    sh '''
+                        set -euo pipefail
+                        export PATH="$PWD:$PATH"
+                        kubectl --namespace "${STAGING_NAMESPACE}" apply -k "${MANIFEST_ROOT}/overlays/staging"
+                        kubectl --namespace "${STAGING_NAMESPACE}" rollout status deployment/kk-payments --timeout=180s
+                    '''
+                }
+            }
         }
-    }
-}
 
         stage('Smoke test staging') {
             when {
@@ -91,12 +86,10 @@ pipeline {
             }
             steps {
                 withCredentials([file(credentialsId: 'kijanikiosk-kubeconfig', variable: 'KUBECONFIG')]) {
-                    sh '''#!/usr/bin/env bash
+                    sh '''
                         set -euo pipefail
+                        export PATH="$PWD:$PATH"
                         smoke_pod="kk-payments-smoke-${BUILD_NUMBER}"
-
-                        # This runs inside kijani-staging, proving both the Service DNS
-                        # route and the workload health endpoint work after the rollout.
                         kubectl --namespace "${STAGING_NAMESPACE}" run "${smoke_pod}" \
                           --image=curlimages/curl:8.12.1 \
                           --restart=Never \
@@ -114,9 +107,6 @@ pipeline {
             when {
                 branch 'develop'
             }
-            options {
-                timeout(time: 15, unit: 'MINUTES')
-            }
             steps {
                 input message: 'Staging rollout and smoke test passed. Deploy kk-payments to production?',
                       ok: 'Deploy production',
@@ -130,8 +120,9 @@ pipeline {
             }
             steps {
                 withCredentials([file(credentialsId: 'kijanikiosk-kubeconfig', variable: 'KUBECONFIG')]) {
-                    sh '''#!/usr/bin/env bash
+                    sh '''
                         set -euo pipefail
+                        export PATH="$PWD:$PATH"
                         kubectl --namespace "${PRODUCTION_NAMESPACE}" apply -k "${MANIFEST_ROOT}/overlays/production"
                         kubectl --namespace "${PRODUCTION_NAMESPACE}" rollout status deployment/kk-payments --timeout=180s
                     '''
