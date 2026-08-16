@@ -15,6 +15,24 @@ pipeline {
     }
 
     stages {
+        stage('Install CLI Tools') {
+            steps {
+                sh '''
+                    set -euo pipefail
+                    echo "Installing kubectl..."
+                    curl -LO "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+                    chmod +x kubectl
+                    sudo mv kubectl /usr/local/bin/
+                    
+                    echo "Installing kustomize..."
+                    curl -LO "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+                    tar -xzf kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz
+                    sudo mv kustomize /usr/local/bin/
+                '''
+            }
+        }
+
+
         stage('Validate Kubernetes manifests') {
             steps {
                 sh '''#!/usr/bin/env bash
