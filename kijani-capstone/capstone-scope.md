@@ -25,12 +25,3 @@ Track A (Infrastructure-first)
 3. **Release gate enforcement:** Production promotion is blocked automatically while critical staging rollout-health alerts are in `firing` state.
 4. **Recovery path validation:** After rollback or fix, alerts return to non-firing state and production promotion can proceed through the defined approval gate.
 
-## Architecture Diagram
-Attached diagram (PNG) will include and label:
-- Developer Git push / merge to `main`
-- CI/CD pipeline stages (build, deploy-staging, observability-check, approval, deploy-production)
-- Kubernetes staging namespace (`kk-payments` deployment, probes, service/ingress)
-- Prometheus metrics scrape path and alert rule evaluation
-- Alert state feedback into CI/CD promotion gate
-- Rollback action path on failed rollout-health validation
-- Production deployment path only after successful staging health validation and approval
