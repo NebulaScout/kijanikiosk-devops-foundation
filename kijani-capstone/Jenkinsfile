@@ -27,7 +27,7 @@ pipeline {
                 sh '''
                     set -euo pipefail
                     
-                    echo "== Installing kubectl =="
+                    echo "= Installing kubectl ="
                     # Download kubectl
                     curl -LO "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
                     chmod +x kubectl
