@@ -1,0 +1,13 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kk-payments
+  labels:
+    app.kubernetes.io/name: kk-payments
+    app.kubernetes.io/component: payments
+    app.kubernetes.io/part-of: kijani-kiosk
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kk-payments
