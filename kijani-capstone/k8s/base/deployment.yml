@@ -26,10 +26,18 @@ spec:
     spec:
       imagePullSecrets:
         - name: kijani-registry-credentials
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
       containers:
         - name: kk-payments
           image: docker.io/nebulascout/kk-payments:v1.1.0
           imagePullPolicy: IfNotPresent
+          securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
           ports:
             - name: http
               containerPort: 3001
