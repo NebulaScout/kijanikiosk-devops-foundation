@@ -32,7 +32,7 @@ pipeline {
                     curl -LO "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
                     chmod +x kubectl
                     
-                    echo "=== Installing kustomize ==="
+                    echo "== Installing kustomize =="
                     # Download the published release asset for this exact tag.
                     KUST_NAME="kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
                     curl -fsSLO "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/${KUSTOMIZE_VERSION}/${KUST_NAME}"
